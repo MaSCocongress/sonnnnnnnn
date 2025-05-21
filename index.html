@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meeting 1 Check-In</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 40px; }
+    input, button { padding: 10px; font-size: 16px; margin-top: 10px; }
+    #status { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>Meeting 1 Check-In</h2>
+
+  <form id="checkin-form">
+    <label>Enter your name:</label><br>
+    <input type="text" id="name" required><br>
+    <button type="submit">Check In</button>
+  </form>
+
+  <p id="status">Checking location...</p>
+
+  <script>
+    const allowedLat = 40.952181;
+    const allowedLon = 29.139799;
+    const maxDistanceMeters = 100;
+    const endpoint = "https://script.google.com/macros/s/AKfycbw_uDCV4u7nm12dPSDcPx2f2mPvvLzEhXYFE-aGsKuGQILXwPaR4jC0BUkzBnfdWiLKUg/exec";
+    const meetingName = "Meeting1";
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    let userLat = null, userLon = null;
+
+    // Check if already checked in
+    if (localStorage.getItem(`checkedIn_${meetingName}`)) {
+      document.getElementById("checkin-form").style.display = "none";
+      document.getElementById("status").innerText = "You’ve already checked in for this meeting.";
+    } else {
+      navigator.geolocation.getCurrentPosition(success, error);
+    }
+
+    function success(position) {
+      userLat = position.coords.latitude;
+      userLon = position.coords.longitude;
+      const dist = getDistance(userLat, userLon, allowedLat, allowedLon);
+      if (dist <= maxDistanceMeters) {
+        document.getElementById("status").innerText = "You're in the right location. Please check in.";
+      } else {
+        document.getElementById("checkin-form").style.display = "none";
+        document.getElementById("status").innerText = `You're too far away (${Math.round(dist)} meters).`;
+      }
+    }
+
+    function error() {
+      document.getElementById("status").innerText = "Location access denied. Cannot check in.";
+      document.getElementById("checkin-form").style.display = "none";
+    }
+
+    document.getElementById("checkin-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      if (!userLat || !userLon) {
+        document.getElementById("status").innerText = "Location not loaded yet.";
+        return;
+      }
+
+      fetch(endpoint, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name,
+          latitude: userLat,
+          longitude: userLon,
+          meeting: meetingName,
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      // Prevent repeat submissions
+      localStorage.setItem(`checkedIn_${meetingName}`, "true");
+      document.getElementById("checkin-form").style.display = "none";
+      document.getElementById("status").innerText = "Check-in successful. Thank you!";
+    });
+  </script>
+</body>
+</html>
